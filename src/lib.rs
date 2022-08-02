@@ -8,14 +8,12 @@ mod admin;
 mod allowance;
 mod balance;
 mod contract;
-mod cryptography;
+pub mod cryptography;
 mod metadata;
-mod nonce;
+pub mod nonce;
 pub mod public_types;
 mod storage_types;
 pub mod testutils;
-
-pub use cryptography::Domain;
 
 pub use crate::contract::allowance::invoke as allowance;
 pub use crate::contract::approve::invoke as approve;

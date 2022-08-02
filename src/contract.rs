@@ -2,12 +2,13 @@ use crate::admin::{has_administrator, to_administrator_authorization, write_admi
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::balance::{read_state, write_state};
-use crate::cryptography::{check_auth, Domain};
+use crate::cryptography::check_auth;
 use crate::metadata::{
     read_decimal, read_name, read_symbol, write_decimal, write_name, write_symbol,
 };
 use crate::nonce::read_nonce;
 use crate::public_types::{Authorization, Identifier, KeyedAuthorization};
+use crate::storage_types::DataKey;
 use soroban_sdk::{contractimpl, BigInt, Binary, Env, IntoVal};
 
 pub trait TokenTrait {
@@ -50,6 +51,30 @@ pub trait TokenTrait {
     fn symbol(e: Env) -> Binary;
 }
 
+#[repr(u32)]
+pub enum Domain {
+    Approve = 0,
+    Transfer = 1,
+    TransferFrom = 2,
+    Burn = 3,
+    Freeze = 4,
+    Mint = 5,
+    SetAdministrator = 6,
+    Unfreeze = 7,
+}
+
+pub fn get_nonce_key(auth: &KeyedAuthorization) -> Option<DataKey> {
+    match auth {
+        KeyedAuthorization::Contract => None,
+        KeyedAuthorization::Ed25519(kea) => {
+            Some(DataKey::Nonce(Identifier::Ed25519(kea.public_key.clone())))
+        }
+        KeyedAuthorization::Account(kaa) => {
+            Some(DataKey::Nonce(Identifier::Account(kaa.public_key.clone())))
+        }
+    }
+}
+
 pub struct Token;
 
 #[contractimpl(export_if = "export")]
@@ -66,7 +91,7 @@ impl TokenTrait for Token {
     }
 
     fn nonce(e: Env, id: Identifier) -> BigInt {
-        read_nonce(&e, id)
+        read_nonce(&e, DataKey::Nonce(id))
     }
 
     fn allowance(e: Env, from: Identifier, spender: Identifier) -> BigInt {
@@ -77,9 +102,10 @@ impl TokenTrait for Token {
         let from_id = from.get_identifier(&e);
         check_auth(
             &e,
-            from,
-            Domain::Approve,
+            &from,
+            Domain::Approve as u32,
             (spender.clone(), amount.clone()).into_val(&e),
+            get_nonce_key(&from),
         );
         write_allowance(&e, from_id, spender, amount);
     }
@@ -96,9 +122,10 @@ impl TokenTrait for Token {
         let from_id = from.get_identifier(&e);
         check_auth(
             &e,
-            from,
-            Domain::Transfer,
+            &from,
+            Domain::Transfer as u32,
             (to.clone(), amount.clone()).into_val(&e),
+            get_nonce_key(&from),
         );
         spend_balance(&e, from_id, amount.clone());
         receive_balance(&e, to, amount);
@@ -114,9 +141,10 @@ impl TokenTrait for Token {
         let spender_id = spender.get_identifier(&e);
         check_auth(
             &e,
-            spender,
-            Domain::TransferFrom,
+            &spender,
+            Domain::TransferFrom as u32,
             (from.clone(), to.clone(), amount.clone()).into_val(&e),
+            get_nonce_key(&spender),
         );
         spend_allowance(&e, from.clone(), spender_id, amount.clone());
         spend_balance(&e, from, amount.clone());
@@ -127,16 +155,23 @@ impl TokenTrait for Token {
         let auth = to_administrator_authorization(&e, admin);
         check_auth(
             &e,
-            auth,
-            Domain::Burn,
+            &auth,
+            Domain::Burn as u32,
             (from.clone(), amount.clone()).into_val(&e),
+            get_nonce_key(&auth),
         );
         spend_balance(&e, from, amount);
     }
 
     fn freeze(e: Env, admin: Authorization, id: Identifier) {
         let auth = to_administrator_authorization(&e, admin);
-        check_auth(&e, auth, Domain::Freeze, (id.clone(),).into_val(&e));
+        check_auth(
+            &e,
+            &auth,
+            Domain::Freeze as u32,
+            (id.clone(),).into_val(&e),
+            get_nonce_key(&auth),
+        );
         write_state(&e, id, true);
     }
 
@@ -144,9 +179,10 @@ impl TokenTrait for Token {
         let auth = to_administrator_authorization(&e, admin);
         check_auth(
             &e,
-            auth,
-            Domain::Mint,
+            &auth,
+            Domain::Mint as u32,
             (to.clone(), amount.clone()).into_val(&e),
+            get_nonce_key(&auth),
         );
         receive_balance(&e, to, amount);
     }
@@ -155,16 +191,23 @@ impl TokenTrait for Token {
         let auth = to_administrator_authorization(&e, admin);
         check_auth(
             &e,
-            auth,
-            Domain::SetAdministrator,
+            &auth,
+            Domain::SetAdministrator as u32,
             (new_admin.clone(),).into_val(&e),
+            get_nonce_key(&auth),
         );
         write_administrator(&e, new_admin);
     }
 
     fn unfreeze(e: Env, admin: Authorization, id: Identifier) {
         let auth = to_administrator_authorization(&e, admin);
-        check_auth(&e, auth, Domain::Unfreeze, (id.clone(),).into_val(&e));
+        check_auth(
+            &e,
+            &auth,
+            Domain::Unfreeze as u32,
+            (id.clone(),).into_val(&e),
+            get_nonce_key(&auth),
+        );
         write_state(&e, id, false);
     }
 

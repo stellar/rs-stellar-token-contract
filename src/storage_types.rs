@@ -1,4 +1,4 @@
-use crate::public_types::Identifier;
+use crate::{cryptography::ContractDataKey, public_types::Identifier};
 use soroban_sdk::contracttype;
 
 #[derive(Clone)]
@@ -20,3 +20,5 @@ pub enum DataKey {
     Name,
     Symbol,
 }
+
+impl ContractDataKey for DataKey {}

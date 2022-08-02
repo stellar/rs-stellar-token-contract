@@ -1,6 +1,6 @@
 #![cfg(feature = "testutils")]
 
-use crate::cryptography::Domain;
+use crate::contract::Domain;
 use crate::public_types::{
     Authorization, Identifier, KeyedAuthorization, KeyedEd25519Signature, Message, MessageV0,
 };
